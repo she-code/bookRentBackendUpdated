@@ -8,15 +8,19 @@ router.get(
 
   bookController.getApprovedBooks
 );
+router.get(
+  "/bookCopies/:id",
 
-router.use(authenticateJwt);
-// router.post(
-//   "/addBook",
+  bookController.getBookCopy
+);
+router.get(
+  "/bookCopiesEdit/:id",
 
-//   bookController.addBook
-// );
+  bookController.getBookCopyEdit
+);
 router.post(
   "/uploadBook",
+  authenticateJwt,
   upload.fields([
     { name: "image", maxCount: 1 },
     { name: "file", maxCount: 1 },
@@ -24,37 +28,18 @@ router.post(
   bookController.uploadBook
 );
 
-router.get(
-  "/getAllBooks",
-
-  bookController.getAllBooks
-);
-router.get(
-  "/getNewBooks",
-
-  bookController.getNewBooks
-);
-router.get(
-  "/getOwnerBooks",
-
-  bookController.getOwnerBooks
-);
-router.put(
+router.get("/getAllBooks", authenticateJwt, bookController.getAllBooks);
+router.get("/getNewBooks", authenticateJwt, bookController.getNewBooks);
+router.get("/getOwnerBooks", authenticateJwt, bookController.getOwnerBooks);
+router.patch(
   "/updateBookStatus/:id",
-
+  authenticateJwt,
   bookController.updateBookStatus
 );
-router.get(
-  "/:id",
+router.get("/getBookRequests", authenticateJwt, bookController.getBookRequests);
 
-  bookController.getBook
-);
+router.get("/:id", bookController.getBook);
+router.delete("/:id", authenticateJwt, bookController.deleteBook);
+router.put("/:id", authenticateJwt, bookController.updateBook);
 
-router.put(
-  "/:id",
-
-  bookController.updateBook
-);
-
-router.get("/getBookRequests", bookController.getBookRequests);
 module.exports = router;

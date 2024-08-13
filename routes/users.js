@@ -15,12 +15,12 @@ router.put(
 
   userController.requestToBecomeOwner
 );
-router.put(
-  "/approveOwner/:id",
+router.patch(
+  "/:id/approval",
 
-  userController.approveOwners
+  userController.setOwnerApprovalStatus
 );
-router.put(
+router.patch(
   "/updateOwnerStatus/:id",
 
   userController.updateOwnerStatus

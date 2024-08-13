@@ -13,6 +13,8 @@ module.exports = (sequelize, DataTypes) => {
         foreignKey: "ownerId",
         as: "ownedBooks",
       });
+      User.hasMany(models.Rent, { foreignKey: "rentedBy", as: "rentedBooks" });
+      User.hasMany(models.Rent, { foreignKey: "ownerId", as: "addedBooks" });
     }
   }
   User.init(
@@ -34,10 +36,17 @@ module.exports = (sequelize, DataTypes) => {
       lastName: { type: DataTypes.STRING, allowNull: false },
       password: { type: DataTypes.STRING, allowNull: false },
       location: { type: DataTypes.STRING, allowNull: false },
+      walletBalance: {
+        type: DataTypes.FLOAT,
+        defaultValue: 0,
+      },
       status: {
         type: DataTypes.STRING,
         allowNull: false,
         default: "pending",
+      },
+      requestStatus: {
+        type: DataTypes.STRING,
       },
       userType: { type: DataTypes.STRING, allowNull: false },
       phoneNumber: { type: DataTypes.STRING, allowNull: false, unique: true },

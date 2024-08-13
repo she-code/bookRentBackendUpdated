@@ -4,6 +4,7 @@ const bookSchema = require("../schema/book");
 const { Book, User, Category, BookCopy } = require("../models");
 const defineAbilitiesFor = require("../utils/abilities");
 const { returnUser } = require("../utils/auth");
+
 exports.uploadBook = async (req, res) => {
   const { book_title, author, categoryId, rentalPrice, condition, quantity } =
     req.body;
@@ -20,7 +21,6 @@ exports.uploadBook = async (req, res) => {
     }
 
     const ability = defineAbilitiesFor(user);
-
     if (!ability.can("create", "Book")) {
       return res.status(403).json({
         status: "fail",
@@ -28,7 +28,7 @@ exports.uploadBook = async (req, res) => {
       });
     }
 
-    // Check if the book already exists for the same user
+    // Check if the book already exists
     let book = await Book.findOne({
       where: { book_title, author, categoryId },
       include: [
@@ -36,68 +36,98 @@ exports.uploadBook = async (req, res) => {
           model: BookCopy,
           as: "copies",
           where: { ownerId },
+          required: false, // Include BookCopy even if it does not exist
         },
       ],
     });
 
-    // If the book exists for the same user, return a message to update the book
-    if (book && book.copies.length > 0) {
-      return res.status(400).json({
-        message:
-          "You have already uploaded this book. Please update the existing book instead.",
-      });
-    }
+    if (book) {
+      // Book exists
+      if (book.copies.length > 0) {
+        // Book already has a copy from the same owner
+        return res.status(400).json({
+          message:
+            "You have already uploaded this book. Please update the existing book instead.",
+        });
+      } else {
+        // Book exists but the owner doesn't own it
+        const bookCopy = await BookCopy.create({
+          bookId: book.id,
+          ownerId,
+          availability: "available",
+          rentalPrice,
+          condition,
+          quantity,
+          image: files?.["image"]
+            ? process.env.SERVER_URL + "uploads/" + files["image"][0].filename
+            : null,
+          file: files?.["file"]
+            ? process.env.SERVER_URL + "uploads/" + files["file"][0].filename
+            : null,
+        });
 
-    // If the book does not exist, create a new book entry
-    if (!book) {
+        // Fetch book copy details including user information
+        const result = await BookCopy.findOne({
+          where: { id: bookCopy.id },
+          include: [
+            {
+              model: Book,
+              as: "book",
+            },
+            {
+              model: User,
+              as: "owner",
+              attributes: ["firstName", "lastName", "location"],
+            },
+          ],
+        });
+
+        return res.status(201).json(result);
+      }
+    } else {
+      // Book does not exist, create a new book and book copy
       book = await Book.create({ book_title, author, categoryId });
+
+      const bookCopy = await BookCopy.create({
+        bookId: book.id,
+        ownerId,
+        availability: "available",
+        rentalPrice,
+        condition,
+        quantity,
+        image: files?.["image"]
+          ? process.env.SERVER_URL + "uploads/" + files["image"][0].filename
+          : null,
+        file: files?.["file"]
+          ? process.env.SERVER_URL + "uploads/" + files["file"][0].filename
+          : null,
+      });
+
+      // Fetch book copy details including user information
+      const result = await BookCopy.findOne({
+        where: { id: bookCopy.id },
+        include: [
+          {
+            model: Book,
+            as: "book",
+          },
+          {
+            model: User,
+            as: "owner",
+            attributes: ["firstName", "lastName", "location"],
+          },
+        ],
+      });
+
+      return res.status(201).json(result);
     }
-
-    // Handle file uploads
-    const bookFiles = {};
-    if (files) {
-      if (files["image"]) {
-        bookFiles["image"] =
-          process.env.SERVER_URL + "uploads/" + files["image"][0].filename;
-      }
-      if (files["file"]) {
-        bookFiles["file"] =
-          process.env.SERVER_URL + "uploads/" + files["file"][0].filename;
-      }
-    }
-
-    // Create a new book copy associated with the book and the new owner
-    const bookCopy = await BookCopy.create({
-      bookId: book.id,
-      ownerId,
-      availability: "available",
-      rentalPrice: rentalPrice,
-      condition: condition,
-      quantity,
-      image: bookFiles["image"] || null,
-      file: bookFiles["file"] || null,
-    });
-
-    // Fetch book copy details including user information
-    const result = await BookCopy.findOne({
-      where: { id: bookCopy.id },
-      include: [
-        {
-          model: Book,
-          as: "book",
-        },
-        {
-          model: User,
-          as: "owner",
-          attributes: ["firstName", "lastName", "location"],
-        },
-      ],
-    });
-
-    res.status(201).json(result);
   } catch (error) {
-    console.log({ error });
-    res.status(500).json({ message: "Error uploading book", error });
+    console.error("Error uploading book:", error);
+    return res.status(500).json({
+      status: "fail",
+      message: "Error uploading book",
+      error: error.message,
+    });
   }
 };
 
@@ -128,9 +158,15 @@ exports.getOwnerBooks = async (req, res) => {
       where: { ownerId: owner_id },
       include: [
         {
+          model: User,
+          as: "owner",
+          attributes: ["id", "firstName", "lastName", "location"],
+        },
+
+        {
           model: Book,
           as: "book",
-          attributes: ["book_title", "author", "description"],
+          include: [{ model: Category, attributes: ["category_name", "id"] }],
         },
       ],
     });
@@ -164,7 +200,7 @@ exports.getApprovedBooks = async (req, res) => {
         {
           model: BookCopy,
           as: "copies",
-          attributes: ["id", "rentalPrice", "condition", "quantity"],
+          attributes: ["id", "rentalPrice", "condition", "quantity", "image"],
           where: {
             approved: true,
             availability: "available",
@@ -179,6 +215,7 @@ exports.getApprovedBooks = async (req, res) => {
               attributes: ["id", "firstName", "lastName", "location"],
               where: {
                 isDisabled: false,
+                isApproved: true,
                 status: "active",
               },
             },
@@ -232,6 +269,7 @@ exports.getAllBooks = async (req, res) => {
             model: Book,
             as: "book",
             attributes: ["id", "book_title", "author", "description"],
+            include: [{ model: Category, attributes: ["category_name", "id"] }],
           },
           {
             model: User,
@@ -248,6 +286,7 @@ exports.getAllBooks = async (req, res) => {
             model: Book,
             as: "book",
             attributes: ["id", "book_title", "author", "description"],
+            include: [{ model: Category, attributes: ["category_name", "id"] }],
           },
           {
             model: User,
@@ -313,8 +352,8 @@ exports.getNewBooks = async (req, res) => {
 };
 exports.deleteBook = async (req, res) => {
   try {
-    const userId = req.user; // Assuming req.user contains the authenticated user's ID
-    const bookId = req.params.id;
+    const userId = req.user;
+    const bookCopyId = req.params.id;
 
     // Retrieve the user and check permissions
     const user = await returnUser(userId);
@@ -333,27 +372,58 @@ exports.deleteBook = async (req, res) => {
       });
     }
 
-    // Find and delete the book
-    const deletedCount = await Book.destroy({
-      where: { id: bookId },
-    });
+    // Find the book copy to be deleted
+    const bookCopy = await BookCopy.findByPk(bookCopyId);
+    if (!bookCopy) {
+      return res.status(404).json({
+        status: "fail",
+        message: "Book copy not found",
+      });
+    }
 
-    if (deletedCount === 0) {
+    // Find the book associated with the book copy
+    const book = await Book.findByPk(bookCopy.bookId);
+    if (!book) {
       return res.status(404).json({
         status: "fail",
         message: "Book not found",
       });
     }
 
+    // Delete the book copy
+    const deletedCount = await BookCopy.destroy({
+      where: { id: bookCopyId },
+    });
+
+    if (deletedCount === 0) {
+      return res.status(404).json({
+        status: "fail",
+        message: "Book copy not found",
+      });
+    }
+
+    // Check if the book has any other copies left
+    const remainingCopies = await BookCopy.count({
+      where: { bookId: book.bookId },
+    });
+
+    // If no copies remain, delete the book
+    if (remainingCopies === 0) {
+      await Book.destroy({
+        where: { id: book.bookId },
+      });
+    }
+
     return res.status(200).json({
       status: "success",
-      message: "Book deleted successfully",
+      message:
+        "Book copy deleted successfully, book removed if it was the only copy",
     });
   } catch (error) {
-    console.error("Error deleting book:", error);
+    console.error("Error deleting book copy:", error);
     return res.status(500).json({
       status: "error",
-      message: "An error occurred while deleting the book",
+      message: "An error occurred while deleting the book copy",
     });
   }
 };
@@ -419,6 +489,7 @@ exports.updateBook = async (req, res) => {
           model: Book,
           as: "book",
           attributes: ["id", "book_title", "author", "description"],
+          include: [{ model: Category, attributes: ["category_name", "id"] }],
         },
         {
           model: User,
@@ -504,6 +575,13 @@ exports.getBook = async (req, res) => {
         {
           model: BookCopy,
           as: "copies",
+          where: {
+            approved: true,
+            availability: "available",
+            quantity: {
+              [Op.gt]: 0,
+            },
+          },
           attributes: [
             "id",
             "quantity",
@@ -517,6 +595,11 @@ exports.getBook = async (req, res) => {
             {
               model: User,
               as: "owner",
+              where: {
+                isDisabled: false,
+                status: "active",
+                isApproved: true,
+              },
               attributes: ["id", "firstName", "lastName", "location"],
             },
           ],
@@ -548,6 +631,128 @@ exports.getBook = async (req, res) => {
     });
   }
 };
+
+exports.getBookCopyEdit = async (req, res) => {
+  try {
+    const bookCopyId = req.params.id;
+
+    // Fetch the book copy along with its associated book and owner details
+    const bookCopy = await BookCopy.findByPk(bookCopyId, {
+      include: [
+        {
+          model: Book,
+          as: "book",
+          attributes: [
+            "id",
+            "book_title",
+            "author",
+            "categoryId",
+            "description",
+          ],
+          include: [
+            {
+              model: Category,
+              attributes: ["category_name", "id"],
+            },
+          ],
+        },
+        {
+          model: User,
+          as: "owner",
+
+          attributes: ["id", "firstName", "lastName", "location"],
+        },
+      ],
+    });
+
+    if (!bookCopy) {
+      return res.status(404).json({
+        status: "fail",
+        message: "Book copy not found",
+      });
+    }
+
+    return res.status(200).json({
+      status: "success",
+      data: bookCopy,
+      message: "Book copy retrieved successfully",
+    });
+  } catch (error) {
+    console.error("Error retrieving book copy:", error);
+    return res.status(500).json({
+      status: "fail",
+      message: "An error occurred while retrieving the book copy",
+    });
+  }
+};
+
+exports.getBookCopy = async (req, res) => {
+  try {
+    const bookCopyId = req.params.id;
+
+    // Fetch the book copy along with its associated book and owner details
+    const bookCopy = await BookCopy.findOne({
+      where: {
+        id: bookCopyId,
+        approved: true,
+        rejected: false,
+        availability: "available",
+        quantity: {
+          [Op.gt]: 0,
+        },
+      },
+      include: [
+        {
+          model: Book,
+          as: "book",
+          attributes: [
+            "id",
+            "book_title",
+            "author",
+            "categoryId",
+            "description",
+          ],
+          include: [
+            {
+              model: Category,
+              attributes: ["category_name", "id"],
+            },
+          ],
+        },
+        {
+          model: User,
+          as: "owner",
+          where: {
+            isDisabled: false,
+            status: "active",
+            isApproved: true,
+          },
+          attributes: ["id", "firstName", "lastName", "location"],
+        },
+      ],
+    });
+
+    if (!bookCopy) {
+      return res.status(404).json({
+        status: "fail",
+        message: "Book copy not found or out of stock",
+      });
+    }
+
+    return res.status(200).json({
+      status: "success",
+      data: bookCopy,
+      message: "Book copy retrieved successfully",
+    });
+  } catch (error) {
+    console.error("Error retrieving book copy:", error);
+    return res.status(500).json({
+      status: "fail",
+      message: "An error occurred while retrieving the book copy",
+    });
+  }
+};
+
 exports.updateBookStatus = async (req, res) => {
   const bookCopyId = req.params.id;
   const userId = req.user;
@@ -567,6 +772,11 @@ exports.updateBookStatus = async (req, res) => {
     // Check if the user has permission to update BookCopy
     if (!abilities.can("update", "BookCopy")) {
       return res.status(403).json({ status: "fail", message: "Access denied" });
+    }
+    if (user.userType != "admin") {
+      return res
+        .status(403)
+        .json({ status: "fail", message: "You cant approve book" });
     }
 
     // Fetch the BookCopy by ID

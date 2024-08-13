@@ -21,21 +21,3 @@ function defineAbilitiesFor(user) {
 }
 
 module.exports = defineAbilitiesFor;
-
-// import { AbilityBuilder, Ability } from '@casl/ability';
-
-// const { can, cannot, build } = new AbilityBuilder(Ability);
-
-// // Assuming `userId` and `isAdmin` are provided by your application logic
-// const userId = 201; // Example user ID
-// const isAdmin = false; // Example admin flag
-
-// can('manage', 'BookCopy', { ownerId: userId });
-// can('manage', 'Book', {});
-
-// if (isAdmin) {
-//   can('manage', 'BookCopy');
-//   can('manage', 'Book');
-// }
-
-// const ability = build();

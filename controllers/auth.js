@@ -1,6 +1,6 @@
 const { User } = require("../models");
 const { registerSchema, loginSchema } = require("../schema/user");
-const { createSendToken } = require("../utils/auth");
+const { createSendToken, returnUser } = require("../utils/auth");
 
 const bcrypt = require("bcryptjs");
 
@@ -73,6 +73,8 @@ exports.login = async (req, res) => {
       });
     }
     if (passWordCorrect) {
+      user.status = "active";
+      await user.save();
       createSendToken(user, req, res);
     }
   } catch (error) {
@@ -81,15 +83,38 @@ exports.login = async (req, res) => {
 };
 
 //logout user
-exports.logout = (req, res) => {
-  res.cookie("jwt", "loggedout", {
-    expires: new Date(Date.now() + 10 * 1000),
-    httpOnly: true,
-  });
-  return res.status(200).json({
-    status: "sucess",
-    message: "logged out successfully",
-  });
+exports.logout = async (req, res) => {
+  try {
+    const userID = req.user;
+    const user = await returnUser(userID);
+    if (!user) {
+      return res.status(404).json({
+        status: "fail",
+        message: "User not found",
+      });
+    }
+
+    // Update the user's status to inactive
+    user.status = "inactive";
+    await user.save();
+
+    // Clear the cookie
+    res.cookie("jwt", "loggedout", {
+      expires: new Date(Date.now() + 10 * 1000),
+      httpOnly: true,
+    });
+
+    // Send success response
+    return res.status(200).json({
+      status: "success",
+      message: "Logged out successfully and user status updated",
+    });
+  } catch (err) {
+    return res.status(500).json({
+      status: "error",
+      message: "Something went wrong during logout",
+    });
+  }
 };
 
 exports.registerAsOwner = async (req, res) => {
@@ -110,6 +135,7 @@ exports.registerAsOwner = async (req, res) => {
       location: location,
       password: hashedPwd,
       phoneNumber: phoneNumber,
+      requestStatus: "pending",
       status: "pending",
       userType: "customer",
     });

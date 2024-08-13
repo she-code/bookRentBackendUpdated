@@ -133,7 +133,7 @@ exports.getOwnerRequests = async (req, res) => {
     const owners = await User.findAll({
       where: {
         userType: "customer",
-        status: "pending",
+        requestStatus: "pending",
         isApproved: false,
       },
       attributes: { exclude: ["password"] },
@@ -255,7 +255,7 @@ exports.getCurrentUser = async (req, res) => {
   }
 };
 
-exports.approveOwners = async (req, res) => {
+exports.setOwnerApprovalStatus = async (req, res) => {
   try {
     const userId = req.user;
     const user = await returnUser(userId);
@@ -275,13 +275,33 @@ exports.approveOwners = async (req, res) => {
       return res.status(403).json({ status: "fail", message: "Forbidden" });
     }
 
+    // Determine the action based on the query parameter
+    const { action } = req.body;
+    let updatedValues;
+
+    if (action === "approve") {
+      updatedValues = {
+        isApproved: true,
+        userType: "owner",
+        status: "active",
+        requestStatus: "approved",
+      };
+    } else if (action === "reject") {
+      updatedValues = {
+        isApproved: false,
+        userType: "customer",
+        requestStatus: "rejected",
+      };
+    } else {
+      return res.status(400).json({
+        status: "fail",
+        message: "Invalid action specified",
+      });
+    }
+
     // Update the owner details
-    const Owner = await owner.update({
-      isApproved: true,
-      userType: "owner",
-      status: "active",
-    });
-    res.status(200).json({ status: "success", data: Owner });
+    const updatedOwner = await owner.update(updatedValues);
+    res.status(200).json({ status: "success", data: updatedOwner });
   } catch (error) {
     console.error("Error updating owner:", error);
     res.status(500).json({

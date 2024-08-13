@@ -17,6 +17,8 @@ module.exports = (sequelize, DataTypes) => {
         foreignKey: "ownerId",
         as: "owner",
       });
+
+      BookCopy.hasMany(models.Rent, { foreignKey: "bookCopyId" });
     }
   }
   BookCopy.init(
