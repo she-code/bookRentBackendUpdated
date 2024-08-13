@@ -12,6 +12,7 @@ exports.createSendToken = (user, req, res) => {
     const cookieOptions = {
       expires: new Date(Date.now() + 60 * 24 * 60 * 60 * 1000), // 60 days
       httpOnly: true,
+      sameSite: "None",
     };
 
     // Secure cookie in production
