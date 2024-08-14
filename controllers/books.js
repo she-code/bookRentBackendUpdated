@@ -6,8 +6,15 @@ const defineAbilitiesFor = require("../utils/abilities");
 const { returnUser } = require("../utils/auth");
 
 exports.uploadBook = async (req, res) => {
-  const { book_title, author, categoryId, rentalPrice, condition, quantity } =
-    req.body;
+  const {
+    book_title,
+    author,
+    categoryId,
+    rentalPrice,
+    condition,
+    quantity,
+    description,
+  } = req.body;
   const ownerId = req.user;
   const files = req.files;
 
@@ -86,7 +93,7 @@ exports.uploadBook = async (req, res) => {
       }
     } else {
       // Book does not exist, create a new book and book copy
-      book = await Book.create({ book_title, author, categoryId });
+      book = await Book.create({ book_title, author, categoryId, description });
 
       const bookCopy = await BookCopy.create({
         bookId: book.id,
