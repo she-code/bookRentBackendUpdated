@@ -722,7 +722,6 @@ exports.getBookCopy = async (req, res) => {
           as: "owner",
           where: {
             isDisabled: false,
-            status: "active",
             isApproved: true,
           },
           attributes: ["id", "firstName", "lastName", "location"],
