@@ -216,7 +216,6 @@ exports.getApprovedBooks = async (req, res) => {
               where: {
                 isDisabled: false,
                 isApproved: true,
-                status: "active",
               },
             },
           ],
