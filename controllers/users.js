@@ -156,6 +156,42 @@ exports.getOwnerRequests = async (req, res) => {
   }
 };
 
+exports.getOwner = async (req, res) => {
+  try {
+    const userId = req.user;
+    const user = await returnUser(userId);
+    const ownerId = req.params.id;
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    const abilities = defineAbilitiesFor(user);
+    if (!abilities.can("read", "User")) {
+      return res.status(403).json({ message: "Access denied" });
+    }
+
+    const owners = await User.findByPk(ownerId, {
+      attributes: { exclude: ["password"] },
+    });
+
+    if (owners.length === 0) {
+      return res.status(404).json({ message: "No owner found" });
+    }
+
+    return res.status(200).json({
+      status: "success",
+      data: owners,
+    });
+  } catch (error) {
+    console.error("Error fetching owner:", error);
+    return res.status(500).json({
+      status: "fail",
+      message: "Internal server error",
+    });
+  }
+};
+
 exports.updateOwnerStatus = async (req, res) => {
   try {
     const userId = req.user;

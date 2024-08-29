@@ -37,6 +37,11 @@ router.patch(
   bookController.updateBookStatus
 );
 router.get("/getBookRequests", authenticateJwt, bookController.getBookRequests);
+router.get(
+  "/getApprovedCopies",
+  authenticateJwt,
+  bookController.getApprovedCopies
+);
 
 router.get("/:id", bookController.getBook);
 router.delete("/:id", authenticateJwt, bookController.deleteBook);

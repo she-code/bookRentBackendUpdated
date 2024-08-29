@@ -9,7 +9,11 @@ router.get(
 
   userController.getOwnerRequests
 );
+router.get(
+  "/getOwner/:id",
 
+  userController.getOwner
+);
 router.put(
   "/becomeOwner",
 

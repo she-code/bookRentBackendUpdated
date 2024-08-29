@@ -20,7 +20,22 @@ const authRouter = require("./routes/auth");
 
 //create application
 const app = express();
-app.use(cors({ origin: "https://book-rent.netlify.app", credentials: true }));
+const allowedOrigins = [
+  "https://book-rent.netlify.app",
+  "http://localhost:5173"
+];
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      if (allowedOrigins.includes(origin) || !origin) {
+        callback(null, true);
+      } else {
+        callback(new Error('Not allowed by CORS'));
+      }
+    },
+    credentials: true,
+  })
+);
 //parse json
 app.use(bodyParser.json({ limit: "1mb" }));
 app.use(express.json());

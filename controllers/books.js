@@ -227,6 +227,7 @@ exports.getApprovedBooks = async (req, res) => {
             },
           ],
         },
+        { model: Category, attributes: ["category_name", "id"] },
       ],
     });
 
@@ -828,6 +829,95 @@ exports.updateBookStatus = async (req, res) => {
     });
   } catch (error) {
     console.error(`Error ${action}ing book copy:`, error);
+    return res.status(500).json({
+      status: "fail",
+      message: "Internal server error",
+    });
+  }
+};
+
+exports.getOwnerBooksByCategory = async (req, res) => {
+  //return books which are not out of stock
+  const userId = req.user;
+  try {
+    // Check if the user exists
+    const user = await returnUser(userId);
+    if (!user) {
+      return res
+        .status(404)
+        .json({ status: "fail", message: "User not found" });
+    }
+
+    // Define abilities for the user
+    const abilities = defineAbilitiesFor(user);
+    if (!abilities.can("read", "BookCopy")) {
+      return res.status(403).json({ status: "fail", message: "Access denied" });
+    }
+    const bookCopies = await BookCopy.findAll({
+      where: { ownerId: userId, quantity },
+    });
+  } catch (error) {
+    console.log(error);
+    return res.status(500).json({
+      status: "fail",
+      message: "Internal server error",
+    });
+  }
+};
+
+exports.getApprovedCopies = async (req, res) => {
+  const userId = req.user; // Ensure req.user is properly set
+
+  if (!userId) {
+    return res
+      .status(400)
+      .json({ status: "fail", message: "User ID is missing" });
+  }
+
+  try {
+    // Fetch user and handle potential errors
+    const user = await returnUser(userId);
+    if (!user) {
+      return res
+        .status(404)
+        .json({ status: "fail", message: "User not found" });
+    }
+
+    // Define user abilities
+    const abilities = defineAbilitiesFor(user);
+    if (!abilities.can("read", "BookCopy")) {
+      return res.status(403).json({ status: "fail", message: "Access denied" });
+    }
+
+    // Query approved book copies
+    const bookCopies = await BookCopy.findAll({
+      where: {
+        approved: true,
+        rejected: false,
+        ...(user.userType !== "admin" && { ownerId: userId }),
+      },
+      include: [
+        {
+          model: User,
+          as: "owner",
+          attributes: ["id", "firstName", "lastName", "location"],
+        },
+
+        {
+          model: Book,
+          as: "book",
+          include: [{ model: Category, attributes: ["category_name", "id"] }],
+        },
+      ],
+    });
+
+    return res.status(200).json({
+      status: "success",
+      data: bookCopies,
+      message: "Books retrieved successfully",
+    });
+  } catch (error) {
+    console.error("Error fetching approved book copies:", error);
     return res.status(500).json({
       status: "fail",
       message: "Internal server error",
